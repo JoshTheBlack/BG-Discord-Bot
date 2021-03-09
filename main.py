@@ -7,7 +7,7 @@ load_dotenv()
 db = TinyDB('db.json')
 User = Query()
 client = discord.Client()
-# db Format { player.name : [ player.name, player.wins, player.plays, player.played, player.active ] }
+# db Format { player.name : [ player.name, player.wins, player.plays, player.played = {"game" : {wins, plays}}, player.active ] }
 
 class Player:
     def __init__(self, name, wins, plays, played):
@@ -30,7 +30,7 @@ async def on_message(message, db=db, User=User):
                 stored["active"] = True
                 db.upsert(stored, User.name == player)
             else:
-                db.upsert({"name": player, "wins":0,"plays":0,"played": [],"active": True, "won":False}, User.name == player)
+                db.upsert({"name": player, "wins":0,"plays":0,"played": {},"active": True}, User.name == player)
         print(db.all())
 
     def reset_players():
@@ -46,6 +46,7 @@ async def on_message(message, db=db, User=User):
         for player in base:
             if player["active"] == True:
                 activePlayers.append(player["name"])
+        return activePlayers
 
     def record_play(game, winner):
         players = db.all()
@@ -53,9 +54,11 @@ async def on_message(message, db=db, User=User):
             if player["active"] == True:
                 player["plays"] += 1
                 if game not in player["played"]:
-                    player["played"].append(game)
+                    player["played"][game] = {"wins" : 0, "plays" : 0}
+                player["played"][game]["plays"] += 1
                 if player["name"] == winner:
                     player["wins"] += 1
+                    player["played"][game]["wins"] += 1
             db.upsert(player,User.name == player["name"])
         print(db.all())
 
@@ -73,13 +76,18 @@ async def on_message(message, db=db, User=User):
         await message.channel.send(f'Active players set to {*players,}')
         
     if message.content.startswith('!record'):
-        game = str(message.content).split(' ',1)[1].lower().split(',',1)[0]
-        winner = str(message.content).split(' ',1)[1].lower().split(',',1)[1]
+        game = str(message.content).split(' ',1)[1].lower().split(',',1)[0].strip()
+        winner = str(message.content).split(' ',1)[1].lower().split(',',1)[1].strip()
         record_play(game,winner)
         currentplayers = get_active_players()
         await message.channel.send(f'Recorded {winner} as the winner of {game}. Updated playcounts for {currentplayers}')
 
-
+    if message.content.startswith('!help'):
+        response = """Use "!players" to set active players.  e.g. "!players adam,breanna,caleb,dakota"\n
+        Use "!record (gamename), (winner)" to record a game for all active players.  e.g. "!record Sagrada, Dakota" \n
+        Use "!stats playername" to see stats for a player.  e.g. !stats breanna"
+        """
+        await message.channel.send(response)
 
 
 
