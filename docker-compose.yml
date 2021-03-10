@@ -1,0 +1,7 @@
+version: '3.4'
+
+services:
+  bgbot:
+    build: .
+    volumes:
+    - .:/usr/src/app

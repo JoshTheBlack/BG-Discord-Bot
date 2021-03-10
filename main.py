@@ -24,14 +24,12 @@ async def on_message(message, db=db, User=User):
                 db.upsert(stored, User.name == player)
             else:
                 db.upsert({"name": player, "wins":0,"plays":0,"played": {},"active": True, "attendance": []}, User.name == player)
-        print(db.all())
 
     def reset_players():
         players = db.all()
         for player in players:
             player["active"] = False
             db.upsert(player,User.name == player["name"])
-        print(db.all())
 
     def get_active_players():
         activePlayers = []
@@ -56,10 +54,11 @@ async def on_message(message, db=db, User=User):
                     player["wins"] += 1
                     player["played"][game]["wins"] += 1
             db.upsert(player,User.name == player["name"])
-        print(db.all())
 
     def player_stats(playername, game="all"):
         player = db.get(User.name == playername)
+        if player == None:
+            return f'**{playername}** has **no** recorded game sessions.'
         games = "\n"
         if game == "all":
             for i in player["played"]:
@@ -106,7 +105,13 @@ async def on_message(message, db=db, User=User):
         await message.channel.send(response)
     
     if message.content.startswith('!stats'):
-        currentplayers = str(message.content).split(' ',2)[1].replace(' ','').lower().split(',')
+        try:
+            currentplayers = str(message.content).split(' ',2)[1].replace(' ','').lower().split(',')
+        except:
+            base = db.all()
+            currentplayers = []
+            for person in base:
+                currentplayers.append(person["name"])
         try:
             game = str(message.content).split(' ',2)[2].lower().split(',')
         except:
@@ -117,7 +122,13 @@ async def on_message(message, db=db, User=User):
             await message.channel.send(player_stats(currentplayer,game))
 
     if message.content.startswith('!attendance'):
-        currentplayers = str(message.content).split(' ',1)[1].replace(' ','').lower().split(',')
+        try:
+            currentplayers = str(message.content).split(' ',1)[1].replace(' ','').lower().split(',')
+        except:
+            base = db.all()
+            currentplayers = []
+            for person in base:
+                currentplayers.append(person["name"])
         for player in currentplayers:
             await message.channel.send(get_attendance(player))
 
