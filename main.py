@@ -16,31 +16,32 @@ async def on_ready():
 
 @client.event
 async def on_message(message, db=db, User=User):
+    table = db.table(message.guild.name)
     def set_players(players):
         for player in players:
-            if db.search(User.name == player):
-                stored = db.get(User.name == str(player))
+            if table.search(User.name == player):
+                stored = table.get(User.name == str(player))
                 stored["active"] = True
-                db.upsert(stored, User.name == player)
+                table.upsert(stored, User.name == player)
             else:
-                db.upsert({"name": player, "wins":0,"plays":0,"played": {},"active": True, "attendance": []}, User.name == player)
+                table.upsert({"name": player, "wins":0,"plays":0,"played": {},"active": True, "attendance": []}, User.name == player)
 
     def reset_players():
-        players = db.all()
+        players = table.all()
         for player in players:
             player["active"] = False
-            db.upsert(player,User.name == player["name"])
+            table.upsert(player,User.name == player["name"])
 
     def get_active_players():
         activePlayers = []
-        base = db.all()
+        base = table.all()
         for player in base:
             if player["active"] == True:
                 activePlayers.append(player["name"])
         return activePlayers
 
     def record_play(game, winner):
-        players = db.all()
+        players = table.all()
         for player in players:
             if player["active"] == True:
                 player["plays"] += 1
@@ -53,10 +54,10 @@ async def on_message(message, db=db, User=User):
                 if player["name"] in winner:
                     player["wins"] += 1
                     player["played"][game]["wins"] += 1
-            db.upsert(player,User.name == player["name"])
+            table.upsert(player,User.name == player["name"])
 
     def player_stats(playername, game="all"):
-        player = db.get(User.name == playername)
+        player = table.get(User.name == playername)
         if player == None:
             return f'**{playername}** has **no** recorded game sessions.'
         games = "\n"
@@ -72,7 +73,7 @@ async def on_message(message, db=db, User=User):
         return f"""**{player["name"]}** has won **{player["wins"]}** of all **{player["plays"]}** games played.{games}\n"""
 
     def get_attendance(playername):
-        player = db.get(User.name == playername)
+        player = table.get(User.name == playername)
         if player == None:
             return f'**{playername}** has **no** recorded game sessions.'
         return f'**{playername}** has attended **{len(player["attendance"])}** recorded game session{"s" if len(player["attendance"]) != 1 else ""}.\n{player["attendance"]}'
@@ -108,7 +109,7 @@ async def on_message(message, db=db, User=User):
         try:
             currentplayers = str(message.content).split(' ',2)[1].replace(' ','').lower().split(',')
         except:
-            base = db.all()
+            base = table.all()
             currentplayers = []
             for person in base:
                 currentplayers.append(person["name"])
@@ -125,7 +126,7 @@ async def on_message(message, db=db, User=User):
         try:
             currentplayers = str(message.content).split(' ',1)[1].replace(' ','').lower().split(',')
         except:
-            base = db.all()
+            base = table.all()
             currentplayers = []
             for person in base:
                 currentplayers.append(person["name"])
