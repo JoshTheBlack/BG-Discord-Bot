@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 from tinydb import TinyDB, Query
 from datetime import datetime
 
-load_dotenv()
-db = TinyDB('db.json')
+load_dotenv("cfg/.env")
+db = TinyDB('cfg/db.json')
 User = Query()
 client = discord.Client()
 # db Format { player.name : [ player.name, player.wins, player.plays, player.played = {"game" : {wins, plays}}, player.active, attendance = [date, date, date...] }
