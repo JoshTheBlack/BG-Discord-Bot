@@ -2,6 +2,6 @@ version: '3.4'
 
 services:
   bgbot:
-    build: .
+    image: bgbot
     volumes:
     - .:/usr/src/app
