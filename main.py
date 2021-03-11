@@ -46,6 +46,7 @@ async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=Use
                         pass
                 init_config()
                 dbversion += 1
+        return f"db updated to version {dbversion}"
                 
     def set_players(players):
         for player in players:
@@ -183,7 +184,7 @@ async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=Use
         await message.channel.send(set_location(location))
 
     if message.content.startswith('!updatedb'):
-        updatedb()
+        await message.channel.send(updatedb())
 
     if message.content.startswith('!info'):
         location = get_location()
