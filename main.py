@@ -8,53 +8,77 @@ load_dotenv("cfg/.env")
 db = TinyDB('cfg/db.json')
 User = Query()
 client = discord.Client()
-# db Format { player.name : [ player.name, player.wins, player.plays, player.played = {"game" : {wins, plays}}, player.active, attendance = [date, date, date...] }
+currentDBVersion = 1
+
+# db Format { "index" : { "name" : name, "wins": win counter, "plays": play counter, "played": {"game1" : {wins, plays}, "game2": {wins, plays}...}, attendance = [[date, location]...] }}
+# conf db Format {"index" : {"id" : "config", "version": dbversion, "location": location, "players": [player1, ...]}}
 
 @client.event
 async def on_ready():
     print("Logged in as {0.user}".format(client))
 
 @client.event
-async def on_message(message, db=db, User=User):
+async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=User):
     table = db.table(message.guild.name)
+    config = db.table(message.guild.name + ".config")
+
+    def init_config(location = "online", players = []):
+        config.upsert({"id": "config", "version": "1", "location": location, "active" : players}, User.id == "config")
+        return
+
+    def init_player(player):
+        table.upsert({"name": player, "wins":0,"plays":0,"played": {}, "attendance": []}, User.name == player)
+        return
+
+    def updatedb():
+        base = table.all()
+        try:
+            dbversion = int(config.get(User.id == "config")["version"])
+        except:
+            dbversion = 0
+        while dbversion < currentDBVersion:
+            if dbversion == 0:
+                from tinydb.operations import delete
+                for player in base:
+                    try:
+                        table.update(delete('active'), User.name == player["name"])
+                    except:
+                        pass
+                init_config()
+                dbversion += 1
+                
     def set_players(players):
         for player in players:
-            if table.search(User.name == player):
-                stored = table.get(User.name == str(player))
-                stored["active"] = True
-                table.upsert(stored, User.name == player)
-            else:
-                table.upsert({"name": player, "wins":0,"plays":0,"played": {},"active": True, "attendance": []}, User.name == player)
-
-    def reset_players():
-        players = table.all()
-        for player in players:
-            player["active"] = False
-            table.upsert(player,User.name == player["name"])
+            if not table.contains(User.name == player):
+               init_player(player)
+        conf = config.get(User.id == "config")
+        if conf == None:
+            init_config()
+            conf = config.get(User.id == "config")
+        conf["active"] = players
+        config.upsert(conf, User.id == "config")
 
     def get_active_players():
-        activePlayers = []
-        base = table.all()
-        for player in base:
-            if player["active"] == True:
-                activePlayers.append(player["name"])
-        return activePlayers
+        return config.get(User.id == "config")["active"]
 
     def record_play(game, winner):
         players = table.all()
+        activePlayers = config.get(User.id == "config")["active"]
+        location = config.get(User.id == "config")["location"]
         for player in players:
-            if player["active"] == True:
+            if player["name"] in activePlayers:
                 player["plays"] += 1
                 date = datetime.today().strftime('%Y-%m-%d')
-                if date not in player["attendance"]:
-                    player["attendance"].append(date)
+                print(not any(date in list for list in player["attendance"]))
+                if not any(date in list for list in player["attendance"]):
+                    player["attendance"].append([date,location])
                 if game not in player["played"]:
                     player["played"][game] = {"wins" : 0, "plays" : 0}
                 player["played"][game]["plays"] += 1
                 if player["name"] in winner:
                     player["wins"] += 1
                     player["played"][game]["wins"] += 1
-            table.upsert(player,User.name == player["name"])
+                table.upsert(player,User.name == player["name"])
 
     def player_stats(playername, game="all"):
         player = table.get(User.name == playername)
@@ -78,6 +102,22 @@ async def on_message(message, db=db, User=User):
             return f'**{playername}** has **no** recorded game sessions.'
         return f'**{playername}** has attended **{len(player["attendance"])}** recorded game session{"s" if len(player["attendance"]) != 1 else ""}.\n{player["attendance"]}'
 
+    def set_location(location):
+        try:
+            conf = config.get(User.id == "config")
+            conf["location"] = location
+            config.upsert(conf, User.id == "config")
+        except:
+            init_config(location)
+        return f"Location set to {location}'s"
+
+    def get_location():
+        try:
+            location = config.get(User.id == "config")["location"]
+        except:
+            location = None
+        return location
+
     if message.author == client.user:
         return
     
@@ -86,24 +126,28 @@ async def on_message(message, db=db, User=User):
         await message.channel.send(f'Hello! {user.split("#",1)[0]}')
     
     if message.content.startswith('!players'):
-        reset_players()
         players = str(message.content).split(' ',1)[1].replace(' ','').lower().split(',')
         set_players(players)
-        await message.channel.send(f'Active players set to {*players,}')
+        await message.channel.send(f'Players set to {*players,}')
         
     if message.content.startswith('!record'):
         winner = str(message.content).split(' ',2)[1].lower().split(',')
         game = str(message.content).split(' ',2)[2].lower()
         record_play(game,winner)
         currentplayers = get_active_players()
-        await message.channel.send(f'Recorded {winner} as the winner(s) of {game}. Updated playcounts for {currentplayers}')
+        await message.channel.send(f'Recorded {winner} as the winner{"s" if len(winner) != 1 else ""} of {game}. Updated playcounts for {currentplayers}')
 
     if message.content.startswith('!help'):
-        response = """Use "!players" to set active players.  e.g. "!players adam,breanna,caleb,dakota"\n
-        Use "!record (comma-separated winner names), (comma-separated game names)" to record a game for all active players.  e.g. "!record Dakota Sagrada" \n
-        Use "!stats playername (optional)gamename" to see stats for a player.  e.g. !stats breanna or !stats breanna,dakota sagrada,6 nimmt"
+        response = """\n
+        Use "!stats playername (optional)gamename" to see stats for a player.  e.g. !stats breanna or !stats breanna,dakota sagrada,6 nimmt"\
         """
-        await message.channel.send(response)
+        await message.channel.send('"!players" to set active players.  e.g. "!players adam,breanna,caleb,dakota"')
+        await message.channel.send('"!record winner,winner game" to record a game for all active players.  e.g. "!record Dakota Sagrada" or "!record Dakota,Breanna Codenames')
+        await message.channel.send('''"!stats *name *game" to see stats.  If no game given, returns all.  If no name given, returns all players stats.\n
+        e.g. "!stats Dakota Sagrada" or "!stats Breanna" or just "!stats"''')
+        await message.channel.send('"!location name" to set location where game was played.  Defaults to "online"')
+        await message.channel.send('"!info" to show current players, location, and if your database is on the current version.')
+        await message.channel.send('"!updatedb" to update your database to the current version, if needed.')
     
     if message.content.startswith('!stats'):
         try:
@@ -117,9 +161,7 @@ async def on_message(message, db=db, User=User):
             game = str(message.content).split(' ',2)[2].lower().split(',')
         except:
             game = "all"
-        #stats = ""
         for currentplayer in currentplayers:
-            #stats += player_stats(currentplayer,game)
             await message.channel.send(player_stats(currentplayer,game))
 
     if message.content.startswith('!attendance'):
@@ -133,4 +175,30 @@ async def on_message(message, db=db, User=User):
         for player in currentplayers:
             await message.channel.send(get_attendance(player))
 
+    if message.content.startswith('!location'):
+        try:
+            location = str(message.content).split(' ',1)[1].replace(' ','').lower()
+        except:
+            location = "online"
+        await message.channel.send(set_location(location))
+
+    if message.content.startswith('!updatedb'):
+        updatedb()
+
+    if message.content.startswith('!info'):
+        location = get_location()
+        players = get_active_players()
+        add = "Your database is up to date."
+        try:
+            dbversion = int(config.get(User.id =="config")["version"])
+        except:
+            dbversion = 0
+        if dbversion < currentDBVersion:
+            add = f"Your database is on version {dbversion}.  The current version is {currentDBVersion}.  Please run !updatedb\n"
+        await message.channel.send(f"Active players: {players}\nLocation: {location}\n{add}")
+
+
+
 client.run(os.getenv('TOKEN'))
+
+
