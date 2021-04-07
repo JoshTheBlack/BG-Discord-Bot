@@ -71,7 +71,6 @@ async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=Use
             if player["name"] in activePlayers:
                 player["plays"] += 1
                 date = datetime.today().strftime('%Y-%m-%d')
-                #print(not any(date in list for list in player["attendance"]))
                 if not any(date in list for list in player["attendance"]):
                     player["attendance"].append([date,location])
                 if game not in player["played"]:
