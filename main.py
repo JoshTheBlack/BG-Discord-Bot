@@ -63,14 +63,15 @@ async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=Use
         return config.get(User.id == "config")["active"]
 
     def record_play(game, winner):
-        players = table.all()
         activePlayers = config.get(User.id == "config")["active"]
+        set_players(activePlayers)
+        players = table.all()
         location = config.get(User.id == "config")["location"]
         for player in players:
             if player["name"] in activePlayers:
                 player["plays"] += 1
                 date = datetime.today().strftime('%Y-%m-%d')
-                print(not any(date in list for list in player["attendance"]))
+                #print(not any(date in list for list in player["attendance"]))
                 if not any(date in list for list in player["attendance"]):
                     player["attendance"].append([date,location])
                 if game not in player["played"]:
@@ -119,6 +120,30 @@ async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=Use
             location = None
         return location
 
+    def del_players(players):
+        message = ""
+        for player in players:
+            try:
+                table.remove(User.name == player)
+                message += f'{player} removed from database.\n'
+            except:
+                message += f'Something went wrong deleting {player}'
+        return message
+
+    def del_games(games):
+        base = table.all()
+        for player in base:
+            plays, wins = 0, 0
+            for game in games:
+                try:
+                    stats = player["played"].pop(game)
+                except:
+                    continue
+                player["plays"] -= stats["plays"]
+                player["wins"] -= stats["wins"]
+            table.update(player, User.name == player["name"])
+        return "Done"
+
     if message.author == client.user:
         return
     
@@ -149,6 +174,7 @@ async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=Use
         await message.channel.send('"!location name" to set location where game was played.  Defaults to "online"')
         await message.channel.send('"!info" to show current players, location, and if your database is on the current version.')
         await message.channel.send('"!updatedb" to update your database to the current version, if needed.')
+        await message.channel.send('"**DANGEROUS** !delete where what" where = game,player what=what,to,delete WILL **DELETE** INFO FROM DB!')
     
     if message.content.startswith('!stats'):
         try:
@@ -185,6 +211,14 @@ async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=Use
 
     if message.content.startswith('!updatedb'):
         await message.channel.send(updatedb())
+
+    if message.content.startswith('!delete'):
+        where = str(message.content).split(' ',2)[1].lower()
+        what = str(message.content).split(' ',2)[2].lower().split(',')
+        if where == "player" or where == "players": result = del_players(what)
+        if where == "game" or where == "games": result = del_games(what)
+        else: result = "Something went wrong. Retry command in the format !delete player/game names,to,remove"
+        await message.channel.send(result)
 
     if message.content.startswith('!info'):
         location = get_location()
