@@ -143,6 +143,17 @@ async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=Use
             table.update(player, User.name == player["name"])
         return "Done"
 
+    def recalc():
+        base = table.all()
+        for player in base:
+            player["wins"] = 0
+            player["plays"] = 0
+            for game in player["played"]:
+                player["wins"] += player["played"][game]["wins"]
+                player["plays"] += player["played"][game]["plays"]
+            table.update(player, User.name == player["name"])
+        return "Play and win counts have been recalculated for all players."
+
     if message.author == client.user:
         return
     
@@ -218,6 +229,9 @@ async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=Use
         if where == "game" or where == "games": result = del_games(what)
         else: result = "Something went wrong. Retry command in the format !delete player/game names,to,remove"
         await message.channel.send(result)
+
+    if message.content.startswith('!recalc'):
+        await message.channel.send(recalc())
 
     if message.content.startswith('!info'):
         location = get_location()
