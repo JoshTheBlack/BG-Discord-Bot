@@ -56,7 +56,7 @@ def set_players(ctx, players):
     table, config = get_db(ctx)
     for player in players:
         if not table.contains(User.name == player):
-            init_player(player)
+            init_player(player, table)
     conf = config.get(User.id == "config")
     if conf == None:
         init_config()
@@ -134,7 +134,7 @@ def del_games(games, table):
         table.update(player, User.name == player["name"])
     return "Done"
 
-def recalc(table):
+def recalculate(table):
     base = table.all()
     for player in base:
         player["wins"] = 0

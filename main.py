@@ -1,49 +1,14 @@
-import discord
+from discord.ext import commands
+from discord.utils import get
 import os
 from dotenv import load_dotenv
-from tinydb import TinyDB, Query
-from datetime import datetime
 from dbhelpers import *
 
 load_dotenv("cfg/.env")
-db = TinyDB('cfg/db.json')
-User = Query()
-client = discord.Client()
 currentDBVersion = 1
 
 # db Format { "index" : { "name" : name, "wins": win counter, "plays": play counter, "played": {"game1" : {wins, plays}, "game2": {wins, plays}...}, attendance = [[date, location]...] }}
 # conf db Format {"index" : {"id" : "config", "version": dbversion, "location": location, "players": [player1, ...]}}
-
-@client.event
-async def on_message(message, currentDBVersion=currentDBVersion, db=db, User=User):
-    table = db.table(message.guild.name)
-    config = db.table(message.guild.name + ".config")    
-
-    if message.content.startswith('!delete'):
-        where = str(message.content).split(' ',2)[1].lower()
-        what = str(message.content).split(' ',2)[2].lower().split(',')
-        if where == "player" or where == "players": result = del_players(what)
-        if where == "game" or where == "games": result = del_games(what)
-        else: result = "Something went wrong. Retry command in the format !delete player/game names,to,remove"
-        await message.channel.send(result)
-
-    if message.content.startswith('!recalc'):
-        await message.channel.send(recalc())
-
-    if message.content.startswith('!info'):
-        location = get_location()
-        players = get_active_players()
-        add = "Your database is up to date."
-        try:
-            dbversion = int(config.get(User.id =="config")["version"])
-        except:
-            dbversion = 0
-        if dbversion < currentDBVersion:
-            add = f"Your database is on version {dbversion}.  The current version is {currentDBVersion}.  Please run !updatedb\n"
-        await message.channel.send(f"Active players: {players}\nLocation: {location}\n{add}")
-
-from discord.ext import commands
-from discord.utils import get
 
 bot = commands.Bot(command_prefix='!', help_command=None)
 
@@ -116,11 +81,38 @@ async def updatedb(ctx):
     table, config = get_db(ctx)
     await ctx.send(update_db(table, config, currentDBVersion))
 
+@bot.command(pass_context=True)
+async def delete(ctx):
+    table, _ = get_db(ctx)
+    where = str(ctx.message.content).split(' ',2)[1].lower()
+    what = str(ctx.message.content).split(' ',2)[2].lower().split(',')
+    if where == "player" or where == "players": result = del_players(what, table)
+    elif where == "game" or where == "games": result = del_games(what, table)
+    else: result = "Something went wrong. Retry command in the format !delete player/game names,to,remove"
+    await ctx.send(result)
+
+@bot.command(pass_context=True)
+async def recalc(ctx):
+    table, _ = get_db(ctx)
+    await ctx.send(recalculate(table))
+
+@bot.command(pass_context=True)
+async def info(ctx):
+    _, config = get_db(ctx)
+    location = get_location(config)
+    players = get_active_players(ctx)
+    add = "Your database is up to date."
+    try:
+        dbversion = int(config.get(User.id =="config")["version"])
+    except:
+        dbversion = 0
+    if dbversion < currentDBVersion:
+        add = f"Your database is on version {dbversion}.  The current version is {currentDBVersion}.  Please run !updatedb\n"
+    await ctx.send(f"Active players: {players}\nLocation: {location}\n{add}")
+
+
 @bot.command()
 async def help(message):
-    # response = """\n
-    #     Use "!stats playername (optional)gamename" to see stats for a player.  e.g. !stats breanna or !stats breanna,dakota sagrada,6 nimmt"\
-    #     """
     await message.channel.send('"!players" to set active players.  e.g. "!players adam,breanna,caleb,dakota"')
     await message.channel.send('"!record winner,winner game" to record a game for all active players.  e.g. "!record Dakota Sagrada" or "!record Dakota,Breanna Codenames')
     await message.channel.send('''"!stats *name *game" to see stats.  If no game given, returns all.  If no name given, returns all players stats.\n
@@ -130,5 +122,7 @@ async def help(message):
     await message.channel.send('"!updatedb" to update your database to the current version, if needed.')
     await message.channel.send('"**DANGEROUS** !delete where what" where = game,player what=what,to,delete WILL **DELETE** INFO FROM DB!')
 
-bot.run(os.getenv('TOKEN'))
+
+if __name__ == "__main__":
+    bot.run(os.getenv('TOKEN'))
 
