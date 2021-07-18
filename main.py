@@ -2,7 +2,7 @@ from discord.ext import commands
 from discord.utils import get
 import os
 from dotenv import load_dotenv
-from dbhelpers import *
+from utils.dbhelpers import *
 
 load_dotenv("cfg/.env")
 currentDBVersion = 1
