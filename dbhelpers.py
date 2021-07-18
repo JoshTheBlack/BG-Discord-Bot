@@ -12,14 +12,14 @@ def player_stats(playername, table, game="all"):
     games = "\n"
     if game == "all":
         for i in player["played"]:
-            games += f'**{player["name"]}** has won **{player["played"][i]["wins"]}** of **{player["played"][i]["plays"]}** games of **{i}**\n'
+            games += f'**{player["name"]}** has won **{player["played"][i]["wins"]}** of **{player["played"][i]["plays"]}** games (or {round(player["played"][i]["wins"]/player["played"][i]["plays"] * 100,0)}%) of **{i}**\n'
     else:
         for i in game:
             try:
-                games += f'**{player["name"]}** has won **{player["played"][i]["wins"]}** of **{player["played"][i]["plays"]}** games of **{i}**\n'
+                games += f'**{player["name"]}** has won **{player["played"][i]["wins"]}** of **{player["played"][i]["plays"]}** games (or {round(player["played"][i]["wins"]/player["played"][i]["plays"] * 100,0)}%) of **{i}**\n'
             except:
                 games += f'**{player["name"]}** has not recorded any plays of {i}\n'
-    return f"""**{player["name"]}** has won **{player["wins"]}** of all **{player["plays"]}** games played.{games}\n"""
+    return f"""**{player["name"]}** has won **{player["wins"]}** of all **{player["plays"]}** ({round(player["wins"]/player["plays"] * 100, 0)}%) games played.{games}\n"""
 
 def init_config(config, location = "online", players = []):
     config.upsert({"id": "config", "version": "1", "location": location, "active" : players}, User.id == "config")
